@@ -13,10 +13,9 @@ from src.sudoku_picture import SudokuPicture
 
 app = Flask(__name__)
 
-# Ensure the upload folder exists
-UPLOAD_FOLDER = './temp'
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+# # Ensure the upload folder exists
+# UPLOAD_FOLDER = './temp'
+# os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 @app.route('/')
 def index():
