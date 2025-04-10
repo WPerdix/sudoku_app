@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sudoku Camera Processing App</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #camera-container {
+            position: relative;
+            width: 100%;
+            max-width: 640px;
+            margin: 20px auto;
+            border: 1px solid #ccc;
+        }
+        #video, #processed-image, #captured-image {
+            width: 100%;
+            display: block;
+        }
+        #processed-image, #captured-image {
+            display: none;
+        }
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        select {
+            padding: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+        }
+        .status {
+            text-align: center;
+            font-style: italic;
+            color: #666;
+            margin: 10px 0;
+        }
+        #canvas {
+            display: none;
+        }
+        
+        /* Sudoku Grid Styles */
+        #sudoku-container {
+            display: none;
+            max-width: 450px;
+            margin: 20px auto;
+        }
+        .sudoku-grid {
+            display: grid;
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+            gap: 1px;
+            border: 2px solid #000;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+        }
+        .sudoku-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            font-size: 20px;
+            position: relative;
+        }
+        .sudoku-cell input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            text-align: center;
+            font-size: 20px;
+            padding: 0;
+            outline: none;
+        }
+        .initial-value {
+            background-color: #f0f0f0;
+            font-weight: bold;
+        }
+        .sudoku-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .select-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 15px auto;
+        }
+        /* Modify the existing sudoku-grid style */
+        .sudoku-grid {
+            display: grid;
+            gap: 1px;
+            border: 2px solid #000;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+        }
+        
+        /* Grid for 9x9 */
+        .grid-9x9 {
+            grid-template-columns: repeat(9, 1fr);
+            grid-template-rows: repeat(9, 1fr);
+        }
+        
+        /* Grid for 16x16 */
+        .grid-16x16 {
+            grid-template-columns: repeat(16, 1fr);
+            grid-template-rows: repeat(16, 1fr);
+        }
+        
+        /* Border styles for 9x9 */
+        .grid-9x9 .sudoku-cell:nth-child(3n) {
+            border-right: 2px solid #000;
+        }
+        .grid-9x9 .sudoku-cell:nth-child(9n) {
+            border-right: none;
+        }
+        .grid-9x9 .sudoku-cell:nth-child(n+19):nth-child(-n+27),
+        .grid-9x9 .sudoku-cell:nth-child(n+46):nth-child(-n+54) {
+            border-bottom: 2px solid #000;
+        }
+        
+        /* Border styles for 16x16 */
+        .grid-16x16 .sudoku-cell:nth-child(4n) {
+            border-right: 2px solid #000;
+        }
+        .grid-16x16 .sudoku-cell:nth-child(16n) {
+            border-right: none;
+        }
+        .grid-16x16 .sudoku-cell:nth-child(n+49):nth-child(-n+64),
+        .grid-16x16 .sudoku-cell:nth-child(n+113):nth-child(-n+128),
+        .grid-16x16 .sudoku-cell:nth-child(n+177):nth-child(-n+192) {
+            border-bottom: 2px solid #000;
+        }
+        
+        /* Smaller font for 16x16 grid */
+        .grid-16x16 .sudoku-cell input {
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sudoku Camera Processing App</h1>
+    
+    <div>
+        <label for="camera-select">Select Camera: </label>
+        <select id="camera-select">
+            <option value="">Loading cameras...</option>
+        </select>
+    </div>
+    
+    <div id="camera-container">
+        <video id="video" autoplay playsinline></video>
+        <img id="captured-image" alt="Captured image">
+        <img id="processed-image" alt="Processed image">
+    </div>
+    
+    <div class="button-container">
+        <button id="capture-btn" disabled>Take Picture</button>
+        <button id="reset-btn" disabled>Reset</button>
+    </div>
+    
+    <p id="status-message" class="status">Waiting for camera access...</p>
+    
+    <div class="select-container">
+        <label for="sudoku-select">Sudoku Size: </label>
+        <select id="sudoku-select">
+            <option value="81">9x9</option>
+            <option value="256">16x16</option>
+        </select>
+    </div>
+
+    <div id="sudoku-container">
+        <h2>Sudoku Puzzle</h2>
+        <p>You can edit the values that were not detected correctly.</p>
+        <div class="sudoku-grid" id="sudoku-grid"></div>
+        <div class="sudoku-controls">
+            <button id="solve-btn">Solve Sudoku</button>
+            <button id="clear-btn">Clear Entries</button>
+        </div>
+    </div>
+    
+    <canvas id="canvas"></canvas>
+    
+    <script>
+        // Elements
+        const videoElement = document.getElementById('video');
+        const capturedImage = document.getElementById('captured-image');
+        const processedImage = document.getElementById('processed-image');
+        const cameraSelect = document.getElementById('camera-select');
+        const captureBtn = document.getElementById('capture-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const statusMessage = document.getElementById('status-message');
+        const canvasElement = document.getElementById('canvas');
+        const canvasContext = canvasElement.getContext('2d');
+        const sudokuContainer = document.getElementById('sudoku-container');
+        const sudokuGrid = document.getElementById('sudoku-grid');
+        const solveBtn = document.getElementById('solve-btn');
+        const clearBtn = document.getElementById('clear-btn');
+        const sudokuSelect = document.getElementById('sudoku-select');
+        
+        // Variables
+        let stream = null;
+        
+        // Initialize
+        document.addEventListener('DOMContentLoaded', setupCameras);
+        document.addEventListener('DOMContentLoaded', setupSudokuSelect);
+        
+        // Setup available cameras
+        async function setupCameras() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                if (videoDevices.length === 0) {
+                    statusMessage.textContent = 'No cameras found on your device.';
+                    return;
+                }
+                
+                // Clear and populate the camera dropdown
+                cameraSelect.innerHTML = '';
+                videoDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+                    cameraSelect.appendChild(option);
+                });
+                
+                // Start with the first camera
+                startCamera(videoDevices[0].deviceId);
+                
+                // Add change event listener
+                cameraSelect.addEventListener('change', () => {
+                    if (stream) {
+                        stopCamera();
+                    }
+                    startCamera(cameraSelect.value);
+                });
+            } catch (error) {
+                statusMessage.textContent = `Error accessing cameras: ${error.message}`;
+            }
+        }
+        
+        // Start camera with the given device ID
+        async function startCamera(deviceId) {
+            try {
+                const constraints = {
+                    video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: {ideal: 1000}, height: {ideal: 1000} }
+                };
+                
+                stream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = stream;
+                
+                // Wait for the video to be ready
+                videoElement.onloadedmetadata = () => {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                    captureBtn.disabled = false;
+                    statusMessage.textContent = 'Camera ready. Click "Take Picture" to capture.';
+                };
+            } catch (error) {
+                statusMessage.textContent = `Error starting camera: ${error.message}`;
+            }
+        }
+        
+        // Stop the camera stream
+        function stopCamera() {
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+        }
+        
+        function setupSudokuSelect() {
+
+            createSudokuGrid("0".repeat(81))
+            sudokuContainer.style.display = 'block';
+
+            // Add change event listener
+            sudokuSelect.addEventListener('change', () => {
+                const size = parseInt(sudokuSelect.value);
+                createSudokuGrid("0".repeat(size));
+            });
+        }
+
+        // Capture a frame from the video
+        captureBtn.addEventListener('click', () => {
+            if (!stream) return;
+            
+            // Draw the current video frame on the canvas
+            canvasContext.drawImage(videoElement, 0, 0, canvasElement.width, canvasElement.height);
+            
+            // Convert canvas to blob
+            canvasElement.toBlob(blob => {
+                const capturedImageUrl = URL.createObjectURL(blob);
+                capturedImage.src = capturedImageUrl;
+                videoElement.style.display = 'none';
+                capturedImage.style.display = 'block';
+
+                // Send to server
+                sendImageToServer(blob);
+            }, 'image/jpeg', 0.95);
+            
+            statusMessage.textContent = 'Processing image...';
+            captureBtn.disabled = true;
+        });
+        
+        // Send image to the server for processing
+        function sendImageToServer(blob) {
+            const formData = new FormData();
+            formData.append('image', blob);
+            
+            fetch('/process_image', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Server error');
+                }
+                
+                // Check the content type of the response
+                const contentType = response.headers.get('content-type');
+                if (contentType && contentType.includes('image/')) {
+                    // Server returned a processed image
+                    return response.blob().then(blob => {
+                        const url = URL.createObjectURL(blob);
+                        processedImage.src = url;
+                        capturedImage.style.display = 'none';
+                        videoElement.style.display = 'none';
+                        processedImage.style.display = 'block';
+                        //sudokuContainer.style.display = 'none';
+                        
+                        statusMessage.textContent = 'Sudoku solved successfully.';
+                        resetBtn.disabled = false;
+                        
+                        // Return null to indicate we handled this as an image
+                        return null;
+                    });
+                } else {
+                    // Server returned text (sudoku state)
+                    return response.text();
+                }
+            })
+            .then(sudokuData => {
+                if (sudokuData) {
+                    if (sudokuData.length == 81 || sudokuData.length == 256) {
+                        // Server returned sudoku state text
+                        createSudokuGrid(sudokuData);
+                        
+                        processedImage.style.display = 'none';
+                        sudokuContainer.style.display = 'block';
+
+                        statusMessage.textContent = 'Sudoku detected, but unable to solve. Please check if the entries are detected correctly. You can edit the values and solve it.';
+                        resetBtn.disabled = false;
+                    } else {
+                        createSudokuGrid("0".repeat(81));
+                        capturedImage.style.display = 'none';
+                        videoElement.style.display = 'block';
+                        processedImage.style.display = 'none';
+                        sudokuContainer.style.display = 'block';
+
+                        statusMessage.textContent = 'No sudoku detected. You can either edit the entries below and solve it or take another picture.';
+                        resetBtn.disabled = false;
+                    }
+
+                }
+            })
+            .catch(error => {
+                statusMessage.textContent = `Error: ${error.message}`;
+                captureBtn.disabled = false;
+            });
+        }
+        
+        // Reset to the camera view
+        resetBtn.addEventListener('click', () => {
+            processedImage.style.display = 'none';
+            capturedImage.style.display = 'none';
+            videoElement.style.display = 'block';
+            captureBtn.disabled = false;
+            resetBtn.disabled = true;
+            statusMessage.textContent = 'Camera ready. Click "Take Picture" to capture.';
+        });
+        
+        // Create Sudoku Grid
+        function createSudokuGrid(sudokuString) {
+            // Clear existing grid
+            sudokuGrid.innerHTML = '';
+            
+            // Determine grid size
+            const gridSize = sudokuString.length === 81 ? 9 : 16;
+            
+            // Set the appropriate grid class
+            sudokuGrid.className = 'sudoku-grid ' + (gridSize === 9 ? 'grid-9x9' : 'grid-16x16');
+            
+            // Parse the sudoku string
+            const validChars = gridSize === 9 ? /[^1-9.0]/g : /[^1-9a-gA-G.0]/g;
+            const sudokuArray = sudokuString.replace(validChars, '').substring(0, sudokuString.length).padEnd(sudokuString.length, '0');
+            
+            // Create cells
+            for (let i = 0; i < sudokuString.length; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'sudoku-cell';
+                
+                const input = document.createElement('input');
+                input.type = 'text';
+                input.maxLength = 1;
+                input.dataset.index = i;
+                
+                // Add event listener to enforce valid input
+                input.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    // For 9x9, only allow 1-9; for 16x16, allow 1-9 and A-G (or a-g)
+                    const validInputPattern = gridSize === 9 ? /[1-9]/ : /[1-9a-gA-G]/i;
+                    if (value && !validInputPattern.test(value)) {
+                        e.target.value = '';
+                    }
+                    // Convert lowercase to uppercase for 16x16
+                    if (gridSize === 16 && /[a-g]/.test(value)) {
+                        e.target.value = value.toUpperCase();
+                    }
+                });
+                
+                // Set initial value if present
+                const value = sudokuArray[i];
+                if (value && value !== '0' && value !== '.') {
+                    input.value = value.toUpperCase(); // Ensure uppercase for letters
+                    input.classList.add('initial-value');
+                }
+                
+                cell.appendChild(input);
+                sudokuGrid.appendChild(cell);
+            }
+        }
+        
+        // Solve button click handler
+        solveBtn.addEventListener('click', () => {
+            const sudokuValues = getCurrentSudokuState();
+            
+            // Send the current state to the server to solve
+            fetch('/solve_sudoku', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ sudoku: sudokuValues })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.solved) {
+                    // Update the grid with the solution
+                    updateSudokuGrid(data.solution);
+                    statusMessage.textContent = 'Sudoku solved successfully!';
+                } else {
+                    statusMessage.textContent = 'No solution exists for this sudoku. Please check your inputs.';
+                }
+            })
+            .catch(error => {
+                statusMessage.textContent = `Error solving sudoku: ${error.message}`;
+            });
+        });
+        
+        // Clear button click handler
+        clearBtn.addEventListener('click', () => {
+            const inputs = sudokuGrid.querySelectorAll('input');
+            inputs.forEach(input => {
+                input.value = '';
+            });
+        });
+        
+        // Get current sudoku state as a string
+        function getCurrentSudokuState() {
+            const inputs = sudokuGrid.querySelectorAll('input');
+            let state = '';
+            
+            inputs.forEach(input => {
+                state += input.value || '0';
+            });
+            return state;
+        }
+        
+        // Update sudoku grid with solution
+        function updateSudokuGrid(solutionString) {
+            const inputs = sudokuGrid.querySelectorAll('input');
+            
+            for (let i = 0; i < inputs.length; i++) {
+                inputs[i].value = solutionString[i];
+            }
+        }
+    </script>
+</body>
+</html>
