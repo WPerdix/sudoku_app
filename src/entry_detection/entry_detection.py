@@ -15,10 +15,16 @@ class EntryDetector():
         
         self.model = model
         self.model.eval()
+        
+        try:
+            if torch.cuda.is_available():
+                self.device = "cuda"
+        except:
+            self.device = "cpu"
     
     def get_entries(self, boxes: List[np.ndarray], n: int=9) -> str:
         boxes = np.array(boxes)
-        boxes = torch.tensor(boxes.reshape(boxes.shape[0], 1, boxes.shape[1], boxes.shape[2]))
+        boxes = torch.tensor(boxes.reshape(boxes.shape[0], 1, boxes.shape[1], boxes.shape[2])).to(self.device)
         result = self.model(boxes)
         return [self.characters[i] for i in torch.argmax(result[:, :n], dim=1)]
 

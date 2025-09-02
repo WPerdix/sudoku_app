@@ -36,7 +36,8 @@ def process_image():
     # Convert to OpenCV format
     nparr = np.frombuffer(image_data, np.uint8)
     image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    
+    # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     
     # # Get Current Timestamp in ms - append timestamp to image name so we always save a new image
     # timestamp = datetime.now()
